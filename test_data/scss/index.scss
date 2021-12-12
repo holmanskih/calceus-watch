@@ -1,0 +1,10 @@
+@import "./styles1/some-styles1";
+@import "./styles1/some-styles2";
+@import "./styles1/some-styles3";
+
+$color: blue;
+
+h1 {
+  font-size: 30px;
+  background-color: $color;
+}
