@@ -8,7 +8,7 @@ const (
 )
 
 type Config struct {
-	ProjectPath string
-	BuildPath   string
-	Mode        Mode
+	Dir      string
+	BuildDir string
+	Mode     Mode
 }
