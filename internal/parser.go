@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -12,19 +11,28 @@ import (
 	"go.uber.org/zap"
 )
 
-const watchTimeout = time.Second * 1
+const (
+	watchTimeout = time.Second * 1
+)
 
 type Parser interface {
+	AddCompiler(ctx context.Context, compilePath string)
 	Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler)
 }
 
 type parser struct {
 	log *zap.Logger
 
-	m               sync.Mutex
-	watchingFiles   []string
-	pretendingFiles []string
-	cfg             Config
+	// collection set for future processing files for each group by compiler
+	m       sync.Mutex
+	history History
+
+	cfg Config
+}
+
+func (p *parser) AddCompiler(ctx context.Context, compilePath string) {
+	//c := NewCompiler(ctx, p.log, compilePath, p.cfg)
+	//p.watchingFiles[compilePath] = c
 }
 
 func (p *parser) GetDir() string {
@@ -38,35 +46,31 @@ func (p *parser) GetBuildDir() string {
 func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler) {
 	p.log.Info("start calceus parsing...")
 
-	// todo: ass smart system for file transformation watch
 	for {
 		select {
 		case <-time.After(watchTimeout):
+			p.history.Start()
+
 			// walk through the directory tree
 			err := p.walkByDir(p.GetDir())
 			if err != nil {
 				p.log.Error("get file names from root dir err", zap.Error(err))
 			}
 
-			p.m.Lock()
-			ok := p.isWatchingFilesChanged(p.watchingFiles, p.pretendingFiles)
-			if !ok {
-				p.watchingFiles = p.pretendingFiles
-			}
-			p.m.Unlock()
-
-			p.getWatchFilesInfo()
+			p.logHistory()
+			p.history.Commit()
 		}
 	}
-	// todo: run compilation(temporary solution)
 }
 
-func (p *parser) getWatchFilesInfo() {
-	temp := make([]string, 0)
-	for _, filePath := range p.watchingFiles {
-		temp = append(temp, filepath.Base(filePath))
-	}
-	p.log.Debug("watching sass file", zap.Any("file", temp))
+func (p *parser) addToHistory(filePath string) {
+	p.m.Lock()
+	p.history.Add(filePath)
+	p.m.Unlock()
+}
+
+func (p *parser) logHistory() {
+	p.history.LogInfo()
 }
 
 func (p *parser) walk(dir string) error {
@@ -85,34 +89,15 @@ func (p *parser) walk(dir string) error {
 		} else {
 			ok := p.isSASSPublicFile(fileName.Name())
 			if !ok {
-				p.addPretendingFile(dir, fileName.Name())
+				p.addToHistory(path.Join(dir, fileName.Name()))
 			}
 		}
 	}
 	return nil
 }
 
-func (p *parser) addPretendingFile(dir, file string) {
-	p.m.Lock()
-	p.pretendingFiles = append(p.pretendingFiles, path.Join(dir, file))
-	p.m.Unlock()
-}
-
 func (p *parser) walkByDir(dir string) error {
-	p.pretendingFiles = make([]string, 0)
 	return p.walk(dir)
-}
-
-func (p *parser) isWatchingFilesChanged(old, new []string) bool {
-	if len(old) != len(new) {
-		return false
-	}
-	for i, value := range old {
-		if value != new[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func (p *parser) isSASSPublicFile(path string) bool {
@@ -122,9 +107,9 @@ func (p *parser) isSASSPublicFile(path string) bool {
 
 func NewParser(cfg Config, log *zap.Logger) Parser {
 	return &parser{
-		log:           log,
-		watchingFiles: make([]string, 0),
-		cfg:           cfg,
-		m:             sync.Mutex{},
+		log:     log,
+		history: NewHistory(log),
+		cfg:     cfg,
+		m:       sync.Mutex{},
 	}
 }
