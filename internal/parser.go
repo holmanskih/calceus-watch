@@ -36,7 +36,8 @@ func (p *parser) Parse() {
 		p.log.Error("get file names from root dir err", zap.Error(err))
 	}
 
-	// todo: run compilation
+	// todo: run compilation(temporary solution)
+
 }
 
 func (p *parser) walkByDir(path string, info fs.FileInfo, err error) error {
@@ -50,6 +51,7 @@ func (p *parser) walkByDir(path string, info fs.FileInfo, err error) error {
 	}
 	ok := p.isSASSPublicFile(info.Name())
 	if !ok {
+		//p.sassFiles = append(p.sassFiles, info.Name())
 		p.log.Debug("found file", zap.String("fileName", info.Name()))
 	}
 	return nil
