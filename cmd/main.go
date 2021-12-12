@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/holmanskih/calceus-watch/internal"
@@ -26,8 +30,23 @@ func main() {
 		panic(fmt.Sprintf("init logger err %e", err))
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
 	parser := internal.NewParser(cfg, log)
-	parser.Parse()
+	go parser.Watch(ctx, cancel)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info("calceus watch was gracefully shutdown")
+			return
+
+		case <-done:
+			cancel()
+		}
+	}
 }
 
 func initLogger() (*zap.Logger, error) {
