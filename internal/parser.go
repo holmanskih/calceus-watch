@@ -3,6 +3,7 @@ package internal
 import (
 	"io/fs"
 	"path/filepath"
+	"strings"
 
 	"go.uber.org/zap"
 )
@@ -38,16 +39,34 @@ func (p *parser) Parse() {
 	// todo: run compilation
 }
 
-func (p *parser) getFileNamesFromDir(dir string) error {
-	filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			p.log.Error("dir walk err", zap.Error(err))
-			return err
-		}
-		p.log.Debug("found file", zap.String("fileName", info.Name()))
+func (p *parser) walkByDir(path string, info fs.FileInfo, err error) error {
+	if err != nil {
+		p.log.Error("dir walk err", zap.Error(err))
+		return err
+	}
+
+	if info.IsDir() {
 		return nil
-	})
+	}
+	ok := p.isSASSPublicFile(info.Name())
+	if !ok {
+		p.log.Debug("found file", zap.String("fileName", info.Name()))
+	}
 	return nil
+}
+
+func (p *parser) getFileNamesFromDir(dir string) error {
+	err := filepath.Walk(dir, p.walkByDir)
+	if err != nil {
+		p.log.Error("dir walk err", zap.Error(err))
+	}
+
+	return nil
+}
+
+func (p *parser) isSASSPublicFile(path string) bool {
+	result := strings.Split(path, PrivateSASSFileDelimiter)
+	return len(result) == 2
 }
 
 func NewParser(cfg Config, log *zap.Logger) Parser {

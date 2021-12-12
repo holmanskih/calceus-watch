@@ -12,3 +12,5 @@ type Config struct {
 	BuildDir string
 	Mode     Mode
 }
+
+const PrivateSASSFileDelimiter = "_"
