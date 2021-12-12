@@ -5,31 +5,40 @@ import (
 	"fmt"
 	"os/exec"
 
+	"go.uber.org/zap"
+
 	"github.com/pkg/errors"
 )
 
 type Compiler interface {
 	// Build starts sass compiler execution
-	Build(ctx context.Context) error
+	Build() error
 
 	// Kill stops sass compiler execution
 	Kill()
 }
 
 type compiler struct {
-	path      string
-	buildPath string
-	mode      Mode
+	log *zap.Logger
+
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+	path       string
+	buildPath  string
+	mode       Mode
 }
 
 func (c *compiler) Kill() {
-	// todo: add kill logic(concerned with context stop)
+	c.log.Info("killing compiler", zap.String("file", c.path))
+	c.cancelFunc()
 }
 
-func (c *compiler) Build(ctx context.Context) error {
+func (c *compiler) Build() error {
+	c.log.Info("building compiler", zap.String("file", c.path))
+
 	args := c.getBuildCmdArgs()
 
-	cmd := exec.CommandContext(ctx, "npx sass", args...)
+	cmd := exec.CommandContext(c.ctx, "npx sass", args...)
 	err := cmd.Run()
 	if err != nil {
 		return errors.Wrapf(err, "build ")
@@ -48,10 +57,15 @@ func (b *compiler) getBuildCmdArgs() []string {
 	return []string{"--no-source-map", fileInfo, "--watch"}
 }
 
-func NewCompiler(path string, cfg Config) Compiler {
+func NewCompiler(ctx context.Context, log *zap.Logger, path string, cfg Config) Compiler {
+	compilerCtx, cancelFunc := context.WithCancel(ctx)
+
 	return &compiler{
-		path:      path, // todo
-		buildPath: "",   // todo
-		mode:      cfg.Mode,
+		log:        log,
+		ctx:        compilerCtx,
+		cancelFunc: cancelFunc,
+		path:       path, // todo
+		buildPath:  "",   // todo
+		mode:       cfg.Mode,
 	}
 }

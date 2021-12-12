@@ -15,7 +15,7 @@ import (
 const watchTimeout = time.Second * 1
 
 type Parser interface {
-	Watch(ctx context.Context, cancelFunc context.CancelFunc)
+	Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler)
 }
 
 type parser struct {
@@ -35,7 +35,7 @@ func (p *parser) GetBuildDir() string {
 	return p.cfg.BuildDir
 }
 
-func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc) {
+func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler) {
 	p.log.Info("start calceus parsing...")
 
 	// todo: ass smart system for file transformation watch

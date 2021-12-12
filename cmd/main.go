@@ -35,8 +35,29 @@ func main() {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
+	// out compiler bus to communicate parser and compiler files
+	compilerChan := make(chan internal.Compiler)
+
+	// start parser worker
 	parser := internal.NewParser(cfg, log)
-	go parser.Watch(ctx, cancel)
+	go parser.Watch(ctx, cancel, compilerChan)
+
+	// start compilerChan worker pool
+
+	go func() {
+		for {
+			select {
+			case compiler, ok := <-compilerChan:
+				if !ok {
+					log.Debug("reading from closed channel")
+					continue
+				}
+
+				go compiler.Build()
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
