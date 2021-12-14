@@ -1,16 +1,20 @@
 package internal
 
+import "time"
+
 type Mode uint
 
 const (
 	ModeProduction Mode = iota
 	ModeDevelopment
+
+	WatchTimeout = time.Second * 2
 )
 
 type Config struct {
-	Dir      string
-	BuildDir string
-	Mode     Mode
+	ProjectDir string
+	BuildDir   string
+	Mode       Mode
 }
 
 const PrivateSASSFileDelimiter = "_"

@@ -11,10 +11,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	watchTimeout = time.Second * 1
-)
-
 type Parser interface {
 	AddCompiler(ctx context.Context, compilePath string)
 	Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler, newMarkChan chan<- string)
@@ -36,7 +32,7 @@ func (p *parser) AddCompiler(ctx context.Context, compilePath string) {
 }
 
 func (p *parser) GetDir() string {
-	return p.cfg.Dir
+	return p.cfg.ProjectDir
 }
 
 func (p *parser) GetBuildDir() string {
@@ -48,7 +44,7 @@ func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc, compi
 
 	for {
 		select {
-		case <-time.After(watchTimeout):
+		case <-time.After(WatchTimeout):
 			p.history.Start()
 
 			// walk through the directory tree
@@ -88,7 +84,9 @@ func (p *parser) walk(dir string) error {
 	}
 
 	for _, fileName := range files {
-		if fileName.IsDir() {
+		if fileName.IsDir() && fileName.Name() == "node_modules" {
+			continue
+		} else if fileName.IsDir() {
 			err := p.walk(path.Join(dir, fileName.Name()))
 			if err != nil {
 				p.log.Error("walk dir err", zap.Error(err))
@@ -104,7 +102,8 @@ func (p *parser) walk(dir string) error {
 }
 
 func (p *parser) walkByDir(dir string) error {
-	return p.walk(dir)
+	sassDir := path.Join(dir, "scss")
+	return p.walk(sassDir)
 }
 
 func (p *parser) isSASSPublicFile(path string) bool {

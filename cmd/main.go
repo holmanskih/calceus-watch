@@ -14,15 +14,15 @@ import (
 )
 
 const (
-	projectPath = "/Users/holmanskih/Desktop/calceus/calceus-watch/test_data/scss"
-	buildPath   = "/Users/holmanskih/Desktop/calceus/calceus-watch/test_data/scss/"
+	projectPath = "/Users/holmanskih/Desktop/calceus/calceus-watch/test_data/"
+	buildPath   = "/Users/holmanskih/Desktop/calceus/calceus-watch/test_data/build/"
 )
 
 func main() {
 	cfg := internal.Config{
-		Dir:      projectPath,
-		BuildDir: buildPath,
-		Mode:     internal.ModeProduction,
+		ProjectDir: projectPath,
+		BuildDir:   buildPath,
+		Mode:       internal.ModeProduction,
 	}
 
 	log, err := initLogger()

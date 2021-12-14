@@ -34,7 +34,7 @@ func (p *compilerPool) Run(ctx context.Context, cfg Config) {
 			p.log.Info("receive new mark", zap.Any("value", mark))
 			go func(ctx context.Context) {
 				comp := NewCompiler(ctx, p.log, mark, cfg)
-				comp.Build()
+				comp.Build(cfg.ProjectDir)
 			}(ctx)
 		}
 	}

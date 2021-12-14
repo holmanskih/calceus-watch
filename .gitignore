@@ -1,1 +1,4 @@
 test_data/build/*
+**/node_modules
+**/*.css*
+**/yarn.lock

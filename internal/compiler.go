@@ -1,20 +1,22 @@
 package internal
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"log"
+	"os"
 	"os/exec"
 	path2 "path"
 	"path/filepath"
 
 	"go.uber.org/zap"
-
-	"github.com/pkg/errors"
 )
 
 type Compiler interface {
 	// Build starts sass compiler execution
-	Build() error
+	Build(projectPath string) error
 
 	// Kill stops sass compiler execution
 	Kill()
@@ -35,17 +37,23 @@ func (c *compiler) Kill() {
 	c.cancelFunc()
 }
 
-func (c *compiler) Build() error {
+func (c *compiler) Build(projectPath string) error {
 	c.log.Info("building compiler", zap.String("file", c.path))
 
-	args := c.getBuildCmdArgs()
+	sassBinary := filepath.Join(projectPath, "node_modules/.bin/sass")
+	cmdOpts := fmt.Sprintf("%s:%s", c.path, c.buildPath)
+	cmd := exec.Command(sassBinary, cmdOpts, "--watch", "--no-source-map") // "--style=compressed"
 
-	cmd := exec.CommandContext(c.ctx, "npx sass", args...)
-	err := cmd.Start()
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
+
+	err := cmd.Run()
 	if err != nil {
-		return errors.Wrapf(err, "build ")
+		log.Fatalf("cmd.Run() failed with %s\n", err)
 	}
-
+	outStr, errStr := string(stdoutBuf.Bytes()), string(stderrBuf.Bytes())
+	fmt.Printf("\nout:\n%s\nerr:\n%s\n", outStr, errStr)
 	return nil
 }
 
@@ -61,7 +69,10 @@ func (b *compiler) getBuildCmdArgs() []string {
 
 func NewCompiler(ctx context.Context, log *zap.Logger, path string, cfg Config) Compiler {
 	compilerCtx, cancelFunc := context.WithCancel(ctx)
-	buildPath := path2.Join(cfg.BuildDir, filepath.Base(path))
+
+	// build path with scss -> css file name
+	cssFileName := filepath.Base(path[:len(path)-4]) + "css"
+	buildPath := path2.Join(cfg.BuildDir, cssFileName)
 
 	return &compiler{
 		log:        log,
