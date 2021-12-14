@@ -29,6 +29,8 @@ type History interface {
 	// Add loads new folder data to History
 	Add(filePath string)
 
+	GetChanged() (new []string, remove []string)
+
 	LogInfo()
 }
 
@@ -37,6 +39,22 @@ type history struct {
 
 	data   map[string]HistoryMark
 	remove []string
+}
+
+func (h *history) GetChanged() (new []string, remove []string) {
+	new = make([]string, 0)
+	remove = make([]string, 0)
+
+	for fileName, fileMark := range h.data {
+		switch fileMark {
+		case HistoryMarkRemove:
+			remove = append(remove, fileName)
+		case HistoryMarkNew:
+			new = append(new, fileName)
+		}
+	}
+
+	return new, remove
 }
 
 func (h *history) Flush() {

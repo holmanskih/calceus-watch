@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	path2 "path"
+	"path/filepath"
 
 	"go.uber.org/zap"
 
@@ -39,7 +41,7 @@ func (c *compiler) Build() error {
 	args := c.getBuildCmdArgs()
 
 	cmd := exec.CommandContext(c.ctx, "npx sass", args...)
-	err := cmd.Run()
+	err := cmd.Start()
 	if err != nil {
 		return errors.Wrapf(err, "build ")
 	}
@@ -59,13 +61,14 @@ func (b *compiler) getBuildCmdArgs() []string {
 
 func NewCompiler(ctx context.Context, log *zap.Logger, path string, cfg Config) Compiler {
 	compilerCtx, cancelFunc := context.WithCancel(ctx)
+	buildPath := path2.Join(cfg.BuildDir, filepath.Base(path))
 
 	return &compiler{
 		log:        log,
 		ctx:        compilerCtx,
 		cancelFunc: cancelFunc,
-		path:       path, // todo
-		buildPath:  "",   // todo
+		path:       path,
+		buildPath:  buildPath,
 		mode:       cfg.Mode,
 	}
 }

@@ -15,7 +15,7 @@ import (
 
 const (
 	projectPath = "/Users/holmanskih/Desktop/calceus/calceus-watch/test_data/scss"
-	buildPath   = "/Users/holmanskih/Desktop/calceus/calceus-watch/test_data/build/"
+	buildPath   = "/Users/holmanskih/Desktop/calceus/calceus-watch/test_data/scss/"
 )
 
 func main() {
@@ -35,28 +35,18 @@ func main() {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
+	//comiler spool
+	pool := internal.NewCompilerPool(log)
+	go pool.Run(ctx, cfg)
+
 	// out compiler bus to communicate parser and compiler files
 	compilerChan := make(chan internal.Compiler)
 
 	// start parser worker
 	parser := internal.NewParser(cfg, log)
-	go parser.Watch(ctx, cancel, compilerChan)
+	go parser.Watch(ctx, cancel, compilerChan, pool.GetNewCompilerOutBus())
 
 	// start compilerChan worker pool
-
-	go func() {
-		for {
-			select {
-			case compiler, ok := <-compilerChan:
-				if !ok {
-					log.Debug("reading from closed channel")
-					continue
-				}
-
-				go compiler.Build()
-			}
-		}
-	}()
 
 	for {
 		select {

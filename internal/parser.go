@@ -17,7 +17,7 @@ const (
 
 type Parser interface {
 	AddCompiler(ctx context.Context, compilePath string)
-	Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler)
+	Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler, newMarkChan chan<- string)
 }
 
 type parser struct {
@@ -43,7 +43,7 @@ func (p *parser) GetBuildDir() string {
 	return p.cfg.BuildDir
 }
 
-func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler) {
+func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler, newMarkChan chan<- string) {
 	p.log.Info("start calceus parsing...")
 
 	for {
@@ -59,6 +59,13 @@ func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc, compi
 
 			p.logHistory()
 			p.history.Commit()
+
+			// get new history marks and start compilers
+			newMarks, _ := p.history.GetChanged()
+			for _, value := range newMarks {
+				p.log.Info("send new mark", zap.Any("value", value))
+				newMarkChan <- value
+			}
 		}
 	}
 }
