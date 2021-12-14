@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/holmanskih/calceus-watch/internal"
 	"go.uber.org/zap"
@@ -14,21 +17,39 @@ import (
 )
 
 const (
-	projectPath = "/Users/holmanskih/Desktop/calceus/calceus-watch/test_data/"
-	buildPath   = "/Users/holmanskih/Desktop/calceus/calceus-watch/test_data/build/"
+	LogLevelInfo  = "info"
+	LogLevelDebug = "debug"
 )
 
 func main() {
-	cfg := internal.Config{
-		ProjectDir: projectPath,
-		BuildDir:   buildPath,
-		Mode:       internal.ModeProduction,
+	projectPath := flag.String("projectPath", "", "project absolute path")
+	buildPath := flag.String("buildPath", "", "project build absolute path")
+
+	// optional
+	sassDirPath := flag.String("sassDirPath", "scss", "sass directory relative path")
+	mode := flag.Bool("prod", false, "production run mode")
+	logLevel := flag.String("log", LogLevelDebug, "log level")
+
+	flag.Parse()
+
+	var runMode internal.Mode
+	if *mode {
+		runMode = internal.ModeProduction
+	} else {
+		runMode = internal.ModeDevelopment
 	}
 
-	log, err := initLogger()
+	log, err := initLogger(*logLevel)
 	if err != nil {
 		panic(fmt.Sprintf("init logger err %e", err))
 	}
+	cfg, err := internal.NewConfig(*projectPath, *buildPath, *sassDirPath, runMode)
+	if err != nil {
+		log.Info(err.Error())
+		return
+	}
+	log.Info("watching project directory", zap.String("value", cfg.ProjectDir))
+	time.Sleep(time.Second * 3)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -44,7 +65,9 @@ func main() {
 
 	// start parser worker
 	parser := internal.NewParser(cfg, log)
-	go parser.Watch(ctx, cancel, compilerChan, pool.GetNewCompilerOutBus())
+	newMarkBus := pool.GetNewMarkOutBus()
+	removeMarkBus := pool.GetNewMarkOutBus()
+	go parser.Watch(ctx, cancel, compilerChan, newMarkBus, removeMarkBus)
 
 	// start compilerChan worker pool
 
@@ -52,16 +75,33 @@ func main() {
 		select {
 		case <-ctx.Done():
 			log.Info("calceus watch was gracefully shutdown")
+			close(compilerChan)
+			close(done)
 			return
 
 		case <-done:
+			log.Info("shutting down calceus watch...")
 			cancel()
 		}
 	}
 }
 
-func initLogger() (*zap.Logger, error) {
+func initLogger(logLevel string) (*zap.Logger, error) {
+	var levelValue zapcore.Level
+
+	switch logLevel {
+	case LogLevelInfo:
+		levelValue = zapcore.InfoLevel
+
+	case LogLevelDebug:
+		levelValue = zapcore.DebugLevel
+
+	default:
+		return nil, errors.New("undefined log level")
+	}
+
 	cfg := zap.NewDevelopmentConfig()
+	cfg.Level.SetLevel(levelValue)
 	cfg.OutputPaths = []string{"stdout"}
 	cfg.ErrorOutputPaths = []string{"stdout"}
 	cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder

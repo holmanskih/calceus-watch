@@ -8,10 +8,15 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	path2 "path"
+	"path"
 	"path/filepath"
 
 	"go.uber.org/zap"
+)
+
+const (
+	cssExtension   = "css"
+	SASSBinaryPath = "node_modules/.bin/sass"
 )
 
 type Compiler interface {
@@ -40,9 +45,9 @@ func (c *compiler) Kill() {
 func (c *compiler) Build(projectPath string) error {
 	c.log.Info("building compiler", zap.String("file", c.path))
 
-	sassBinary := filepath.Join(projectPath, "node_modules/.bin/sass")
+	sassBinary := filepath.Join(projectPath, SASSBinaryPath)
 	cmdOpts := fmt.Sprintf("%s:%s", c.path, c.buildPath)
-	cmd := exec.Command(sassBinary, cmdOpts, "--watch", "--no-source-map") // "--style=compressed"
+	cmd := exec.CommandContext(c.ctx, sassBinary, cmdOpts, "--watch", "--no-source-map") // "--style=compressed"
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
@@ -56,29 +61,18 @@ func (c *compiler) Build(projectPath string) error {
 	fmt.Printf("\nout:\n%s\nerr:\n%s\n", outStr, errStr)
 	return nil
 }
-
-func (b *compiler) getBuildCmdArgs() []string {
-	fileInfo := fmt.Sprintf("%s:%s", b.path, b.buildPath)
-
-	if b.mode == ModeProduction {
-		return []string{"--no-source-map", fileInfo, "--watch", "--style=compressed"}
-	}
-
-	return []string{"--no-source-map", fileInfo, "--watch"}
-}
-
-func NewCompiler(ctx context.Context, log *zap.Logger, path string, cfg Config) Compiler {
+func NewCompiler(ctx context.Context, log *zap.Logger, filePath string, cfg Config) Compiler {
 	compilerCtx, cancelFunc := context.WithCancel(ctx)
 
 	// build path with scss -> css file name
-	cssFileName := filepath.Base(path[:len(path)-4]) + "css"
-	buildPath := path2.Join(cfg.BuildDir, cssFileName)
+	cssFileName := filepath.Base(filePath[:len(filePath)-4]) + cssExtension
+	buildPath := path.Join(cfg.BuildDir, cssFileName)
 
 	return &compiler{
 		log:        log,
 		ctx:        compilerCtx,
 		cancelFunc: cancelFunc,
-		path:       path,
+		path:       filePath,
 		buildPath:  buildPath,
 		mode:       cfg.Mode,
 	}

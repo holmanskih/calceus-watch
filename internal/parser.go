@@ -13,7 +13,8 @@ import (
 
 type Parser interface {
 	AddCompiler(ctx context.Context, compilePath string)
-	Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler, newMarkChan chan<- string)
+	Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler,
+		newMarkChan chan<- string, removeMarkChan chan<- string)
 }
 
 type parser struct {
@@ -39,7 +40,8 @@ func (p *parser) GetBuildDir() string {
 	return p.cfg.BuildDir
 }
 
-func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler, newMarkChan chan<- string) {
+func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc, compilerChan chan Compiler,
+	newMarkChan chan<- string, removeMarkChan chan<- string) {
 	p.log.Info("start calceus parsing...")
 
 	for {
@@ -57,10 +59,15 @@ func (p *parser) Watch(ctx context.Context, cancelFunc context.CancelFunc, compi
 			p.history.Commit()
 
 			// get new history marks and start compilers
-			newMarks, _ := p.history.GetChanged()
+			newMarks, removeMarks := p.history.GetChanged()
 			for _, value := range newMarks {
-				p.log.Info("send new mark", zap.Any("value", value))
+				p.log.Debug("send new mark", zap.Any("value", value))
 				newMarkChan <- value
+			}
+
+			for _, value := range removeMarks {
+				p.log.Debug("send remove mark", zap.Any("value", value))
+				removeMarkChan <- value
 			}
 		}
 	}
@@ -102,7 +109,7 @@ func (p *parser) walk(dir string) error {
 }
 
 func (p *parser) walkByDir(dir string) error {
-	sassDir := path.Join(dir, "scss")
+	sassDir := path.Join(dir, p.cfg.SassDir)
 	return p.walk(sassDir)
 }
 
